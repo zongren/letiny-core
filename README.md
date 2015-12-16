@@ -40,7 +40,7 @@ The Goodies
 
 ```javascript
 // Accounts
-LeCore.registerNewAccount(options, cb)        // returns (err, acmeUrls={newReg,newAuthz,newCert,revokeCert})
+LeCore.registerNewAccount(options, cb)        // returns "regr" registration data
 
     { newRegUrl: '<url>'                      //    no defaults, specify acmeUrls.newAuthz
     , email: '<email>'                        //    valid email (server checks MX records)
@@ -61,6 +61,9 @@ LeCore.getCertificate(options, cb)            // returns (err, pems={ key, cert,
     , setChallenge: fn (hostname, key, val, cb)
     , removeChallenge: fn (hostname, key, cb)
     }
+    
+// Discovery URLs
+LeCore.getAcmeUrls(acmeDiscoveryUrl, cb)      // returns (err, acmeUrls={newReg,newAuthz,newCert,revokeCert})
 ```
 
 Helpers & Stuff
