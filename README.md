@@ -14,11 +14,11 @@ Supports all of:
 This is a library / framework for building letsencrypt clients.
 You probably want one of these pre-built clients instead:
 
-  * `letsencrypt` (100% compatible with the official client)
-  * `letiny` (lightweight client)
+  * [`letsencrypt`](https://github.com/Daplie/node-letsencrypt) (compatible with the official client)
+  * `letiny` (lightweight client cli)
   * `letsencrypt-express` (automatic https for express)
 
-## Usage:
+## Install & Usage:
 
 ```bash
 npm install --save letiny-core
@@ -34,76 +34,241 @@ You will follow these steps to obtain certificates:
 * implement a method to get the challenge token as `getChallenge`
 * implement a method to remove the challenge token as `removeChallenge`
 
+### Demo
+
+You can see this working for yourself, but you'll need to be on an internet connected computer with a domain.
+
+Get a temporary domain for testing
+
+```bash
+npm install -g ddns-cli
+ddns --random --email user@example.com --agree
+```
+
+Note: use **YOUR EMAIL** and accept the terms of service (run `ddns --help` to see them).
+
+<!-- TODO tutorial on ddns -->
+
+Install letiny-core and its dependencies. **Note**: it's okay if you're on windows
+and `ursa` fails to compile. It'll still work.
+
+```bash
+git clone https://github.com/Daplie/letiny-core.git ~/letiny-core
+pushd ~/letiny-core
+
+npm install
+```
+
+Run the demo:
+
+```bash
+node examples/letsencrypt.js user@example.com example.com
+```
+
+Note: use **YOUR TEMPORARY DOMAIN** and **YOUR EMAIL**.
+
+## API
+
+The Goodies
+
+```javascript
+// Accounts
+LeCore.registerNewAccount(options, cb)        // returns "regr" registration data
+
+    { newRegUrl: '<url>'                      //    no defaults, specify acmeUrls.newAuthz
+    , email: '<email>'                        //    valid email (server checks MX records)
+    , accountPrivateKeyPem: '<ASCII PEM>'     //    callback to allow user interaction for tosUrl
+    , agreeToTerms: fn (tosUrl, cb) {}        //    must specify agree=tosUrl to continue (or falsey to end)
+    }
+
+// Registration
+LeCore.getCertificate(options, cb)            // returns (err, pems={ key, cert, ca })
+
+    { newAuthzUrl: '<url>'                    //    specify acmeUrls.newAuthz
+    , newCertUrl: '<url>'                     //    specify acmeUrls.newCert
+
+    , domainPrivateKeyPem: '<ASCII PEM>'
+    , accountPrivateKeyPem: '<ASCII PEM>'
+    , domains: ['example.com']
+
+    , setChallenge: fn (hostname, key, val, cb)
+    , removeChallenge: fn (hostname, key, cb)
+    }
+    
+// Discovery URLs
+LeCore.getAcmeUrls(acmeDiscoveryUrl, cb)      // returns (err, acmeUrls={newReg,newAuthz,newCert,revokeCert})
+```
+
+Helpers & Stuff
+
+```javascript
+// Constants
+LeCore.productionServerUrl                // https://acme-v01.api.letsencrypt.org/directory
+LeCore.stagingServerUrl                   // https://acme-staging.api.letsencrypt.org/directory
+LeCore.acmeChallengePrefix                // /.well-known/acme-challenge/
+LeCore.configDir                          // /etc/letsencrypt/
+LeCore.logsDir                            // /var/log/letsencrypt/
+LeCore.workDir                            // /var/lib/letsencrypt/
+LeCore.knownEndpoints                     // new-authz, new-cert, new-reg, revoke-cert
+
+
+// HTTP Client Helpers
+LeCore.Acme                               // Signs requests with JWK
+    acme = new Acme(lePrivateKey)           // privateKey format is abstract
+    acme.post(url, body, cb)                // POST with signature
+    acme.parseLinks(link)                   // (internal) parses 'link' header
+    acme.getNonce(url, cb)                  // (internal) HEAD request to get 'replay-nonce' strings
+
+// Note: some of these are not async,
+// but they will be soon. Don't rely
+// on their API yet.
+
+// Crypto Helpers
+LeCore.leCrypto
+    generateRsaKeypair(bitLen, exponent, cb);     // returns { privateKeyPem, privateKeyJwk, publicKeyPem, publicKeyMd5 }
+    thumbprint(lePubKey)                          // generates public key thumbprint
+    generateSignature(lePrivKey, bodyBuf, nonce)  // generates a signature
+    privateJwkToPems(jwk)                         // { n: '...', e: '...', iq: '...', ... } to PEMs
+    privatePemToJwk                               // PEM to JWK (see line above)
+    importPemPrivateKey(privateKeyPem)            // (internal) returns abstract private key
+```
+
+For testing and development, you can also inject the dependencies you want to use:
+
+```javascript
+LeCore = LeCore.create({
+  request: require('request')
+, leCrypto: rquire('./lib/letsencrypt-forge')
+});
+
+// now uses node `request` (could also use jQuery or Angular in the browser)
+LeCore.getAcmeUrls(discoveryUrl, function (err, urls) {
+  console.log(urls);
+});
+```
+
+## Example
+
+Below you'll find a stripped-down example. You can see the full example in the example folder.
+
+* [example/](https://github.com/Daplie/letiny-core/blob/master/example/)
+
+#### Register Account & Domain
+
+This is how you **register an ACME account** and **get an HTTPS certificate**
+
 ```javascript
 'use strict';
 
 var LeCore = require('letiny-core');
 
-var accountPrivateKeyPem = '...';                     // leCrypto.generateRsaKeypair(bitLen, exp, cb)
-var domainPrivateKeyPem = '...';                      // (same)
-var challengeStore = { /*get, set, remove*/ };        // see below for example
+var email = 'user@example.com';                   // CHANGE TO YOUR EMAIL
+var domains = 'example.com';                      // CHANGE TO YOUR DOMAIN
+var acmeDiscoveryUrl = LeCore.stagingServerUrl;   // CHANGE to production, when ready
 
-LeCore.getAcmeUrls(
-  LeCore.stagingServerUrl                             // or choose LeCore.productionServerUrl
-, function (err, urls) {
+var accountPrivateKeyPem = null;
+var domainPrivateKeyPem = null;
+var acmeUrls = null;
 
+LeCore.leCrypto.generateRsaKeypair(2048, 65537, function (err, pems) {
+    // ...
+    LeCore.getAcmeUrls(acmeDiscoveryUrl, function (err, urls) {
+        // ...
+        runDemo();
+    });
+});
+
+function runDemo() {
     LeCore.registerNewAccount(
-      { newRegUrl: urls.newReg
-      , email: 'user@example.com'
-      , accountPrivateKeyPem: accountPrivateKeyPem
-      , agreeToTerms: function (tosUrl, done) {
-          // agree to these exact terms
-          done(null, tosUrl);
+        { newRegUrl: acmeUrls.newReg
+        , email: email
+        , accountPrivateKeyPem: accountPrivateKeyPem
+        , agreeToTerms: function (tosUrl, done) {
+
+              // agree to the exact version of these terms
+              done(null, tosUrl);
+          }
         }
-      }
-    , function (err, regr) {
+      , function (err, regr) {
 
-        // Note: you should save the registration
-        // record to disk (or db)
+            LeCore.getCertificate(
+                { newAuthzUrl: acmeUrls.newAuthz
+                , newCertUrl: acmeUrls.newCert
 
-        LeCore.getCertificate(
-          { newAuthzUrl: urls.newAuthz
-          , newCertUrl: urls.newCert
+                , domainPrivateKeyPem: domainPrivateKeyPem
+                , accountPrivateKeyPem: accountPrivateKeyPem
+                , domains: domains
 
-          , domainPrivateKeyPem: domainPrivateKeyPem
-          , accountPrivateKeyPem: accountPrivateKeyPem
+                , setChallenge: challengeStore.set
+                , removeChallenge: challengeStore.remove
+                }
+              , function (err, certs) {
 
-          , setChallenge: challengeStore.set
-          , removeChallenge: challengeStore.remove
-          }
-        , function (err, certs) {
+                  // Note: you should save certs to disk (or db)
+                  certStore.set(domains[0], certs, function () {
 
-            // Note: you should save certs to disk (or db)
-            
-          }
-        )
+                      // ...
 
-      }
+                  });
+
+                }
+            );
+        }
     );
-
-  }
-);
+}
 ```
+
+**But wait**, there's more!
+See [example/letsencrypt.js](https://github.com/Daplie/letiny-core/blob/master/example/letsencrypt.js)
+
+#### Run a Server on 80, 443, and 5001 (https/tls)
 
 That will fail unless you have a webserver running on 80 and 443 (or 5001)
 to respond to `/.well-known/acme-challenge/xxxxxxxx` with the proper token
 
 ```javascript
-var localCerts = require('localhost.daplie.com-certificates'); // needs default certificates
+var https = require('https');
 var http = require('http');
-var httsp = require('https');
 
+
+var LeCore = deps.LeCore;
+var httpsOptions = deps.httpsOptions;
+var challengeStore = deps.challengeStore;
+var certStore = deps.certStore;
+
+
+//
+// Challenge Handler
+//
 function acmeResponder(req, res) {
-  if (0 !== req.url.indexOf(LeCore.acmeChallengePrefixUrl)) {
+  if (0 !== req.url.indexOf(LeCore.acmeChallengePrefix)) {
     res.end('Hello World!');
     return;
   }
 
-  LeCore.
+  var key = req.url.slice(LeCore.acmeChallengePrefix.length);
+
+  challengeStore.get(req.hostname, key, function (err, val) {
+    res.end(val || 'Error');
+  });
 }
 
-http.createServer()
+
+//
+// Server
+//
+https.createServer(httpsOptions, acmeResponder).listen(5001, function () {
+  console.log('Listening https on', this.address());
+});
+http.createServer(acmeResponder).listen(80, function () {
+  console.log('Listening http on', this.address());
+});
 ```
+
+**But wait**, there's more!
+See [example/serve.js](https://github.com/Daplie/letiny-core/blob/master/example/serve.js)
+
+#### Put some storage in place
 
 Finally, you need an implementation of `challengeStore`:
 
@@ -122,77 +287,28 @@ var challengeStore = {
     cb(null);
   }
 };
-```
 
-## API
-
-The Goodies
-
-```javascript
-  { newRegUrl: '...'                          //    no defaults, specify LeCore.nproductionServerUrl
-
-// Accounts 
-LeCore.registerNewAccount(options, cb)        // returns (err, acmeUrls={newReg,newAuthz,newCert,revokeCert})
-
-  { newRegUrl: '...'                          //    no defaults, specify LeCore.newAuthz
-  , email: '...'                              //    valid email (server checks MX records)
-  , agreeToTerms: fn (tosUrl, cb) {}          //    callback to allow user interaction for tosUrl
-      // cb(err=null, agree=tosUrl)           //    must specify agree=tosUrl to continue (or falsey to end)
+var certCache = {};
+var certStore = {
+  set: function (hostname, certs, cb) {
+    certCache[hostname] = certs;
+    cb(null);
   }
-
-// Registration
-LeCore.getCertificate(options, cb)
-
-  { newAuthzUrl: '...'                        //   no defaults, specify acmeUrls.newAuthz
+, get: function (hostname, cb) {
+    cb(null, certCache[hostname]);
+  }
+, remove: function (hostname, cb) {
+    delete certCache[hostname];
+    cb(null);
+  }
+};
 ```
 
-Helpers & Stuff
+**But wait**, there's more!
+See
 
-```javascript
-// Constants
-LeCore.productionServerUrl                // https://acme-v01.api.letsencrypt.org/directory
-LeCore.stagingServerUrl                   // https://acme-staging.api.letsencrypt.org/directory
-LeCore.acmeChallengePrefix                // /.well-known/acme-challenge/
-LeCore.configDir                          // /etc/letsencrypt/
-LeCore.logsDir                            // /var/log/letsencrypt/
-LeCore.workDir                            // /var/lib/letsencrypt/
-LeCore.knownEndpoints                     // new-authz, new-cert, new-reg, revoke-cert
-
-
-// HTTP Client Helpers
-LeCore.Acme                               // Signs requests with JWK
-  acme = new Acme(lePrivateKey)           // privateKey format is abstract
-  acme.post(url, body, cb)                // POST with signature
-  acme.parseLinks(link)                   // (internal) parses 'link' header
-  acme.getNonce(url, cb)                  // (internal) HEAD request to get 'replay-nonce' strings
-
-// Note: some of these are not async,
-// but they will be soon. Don't rely
-// on their API yet.
-
-// Crypto Helpers
-LeCore.leCrypto
-  generateRsaKeypair(bitLen, exponent, cb);     // returns { privateKeyPem, privateKeyJwk, publicKeyPem, publicKeyMd5 }
-  thumbprint(lePubKey)                          // generates public key thumbprint
-  generateSignature(lePrivKey, bodyBuf, nonce)  // generates a signature
-  privateJwkToPems(jwk)                         // { n: '...', e: '...', iq: '...', ... } to PEMs
-  privatePemToJwk                               // PEM to JWK (see line above)
-  importPemPrivateKey(privateKeyPem)            // (internal) returns abstract private key
-```
-
-For testing and development, you can also inject the dependencies you want to use:
-
-```javascript
-LeCore = LeCore.create({
-  request: require('request')
-, leCrypto: rquire('./lib/letsencrypt-forge')
-});
-
-// now uses node `request` (could also use jQuery or Angular in the browser)
-LeCore.getAcmeUrls(discoveryUrl, function (err, urls) {
-  console.log(urls);
-});
-```
+* [example/challenge-store.js](https://github.com/Daplie/letiny-core/blob/master/challenge-store.js)
+* [example/cert-store.js](https://github.com/Daplie/letiny-core/blob/master/cert-store.js)
 
 ## Authors
 
