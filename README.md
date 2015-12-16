@@ -34,6 +34,39 @@ You will follow these steps to obtain certificates:
 * implement a method to get the challenge token as `getChallenge`
 * implement a method to remove the challenge token as `removeChallenge`
 
+### Demo
+
+You can see this working for yourself, but you'll need to be on an internet connected computer with a domain.
+
+Get a temporary domain for testing
+
+```bash
+npm install -g ddns-cli
+ddns --random --email user@example.com --agree
+```
+
+Note: use **YOUR EMAIL** and accept the terms of service (run `ddns --help` to see them).
+
+<!-- TODO tutorial on ddns -->
+
+Install letiny-core and its dependencies. **Note**: it's okay if you're on windows
+and `ursa` fails to compile. It'll still work.
+
+```bash
+git clone https://github.com/Daplie/letiny-core.git ~/letiny-core
+pushd ~/letiny-core
+
+npm install
+```
+
+Run the demo:
+
+```
+node examples/letsencrypt.js user@example.com example.com
+```
+
+Note: use **YOUR TEMPORARY DOMAIN** and **YOUR EMAIL**.
+
 ## API
 
 The Goodies
