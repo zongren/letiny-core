@@ -61,7 +61,7 @@ npm install
 
 Run the demo:
 
-```
+```bash
 node examples/letsencrypt.js user@example.com example.com
 ```
 
