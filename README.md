@@ -157,9 +157,6 @@ Below you'll find a stripped-down example. You can see the full example in the e
 
 This is how you **register an ACME account** and **get an HTTPS certificate**
 
-**But wait**, there's more!
-See [example/letsencrypt.js](https://github.com/Daplie/letiny-core/blob/master/example/letsencrypt.js)
-
 ```javascript
 'use strict';
 
@@ -221,13 +218,13 @@ function runDemo() {
 }
 ```
 
+**But wait**, there's more!
+See [example/letsencrypt.js](https://github.com/Daplie/letiny-core/blob/master/example/letsencrypt.js)
+
 #### Run a Server on 80, 443, and 5001 (https/tls)
 
 That will fail unless you have a webserver running on 80 and 443 (or 5001)
 to respond to `/.well-known/acme-challenge/xxxxxxxx` with the proper token
-
-**But wait**, there's more!
-See [example/serve.js](https://github.com/Daplie/letiny-core/blob/master/example/serve.js)
 
 ```javascript
 var https = require('https');
@@ -268,15 +265,12 @@ http.createServer(acmeResponder).listen(80, function () {
 });
 ```
 
+**But wait**, there's more!
+See [example/serve.js](https://github.com/Daplie/letiny-core/blob/master/example/serve.js)
+
 #### Put some storage in place
 
 Finally, you need an implementation of `challengeStore`:
-
-**But wait**, there's more!
-See
-
-* [example/challenge-store.js](https://github.com/Daplie/letiny-core/blob/master/challenge-store.js)
-* [example/cert-store.js](https://github.com/Daplie/letiny-core/blob/master/cert-store.js)
 
 ```javascript
 var challengeCache = {};
@@ -309,6 +303,12 @@ var certStore = {
   }
 };
 ```
+
+**But wait**, there's more!
+See
+
+* [example/challenge-store.js](https://github.com/Daplie/letiny-core/blob/master/challenge-store.js)
+* [example/cert-store.js](https://github.com/Daplie/letiny-core/blob/master/cert-store.js)
 
 ## Authors
 
