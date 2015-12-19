@@ -16,7 +16,7 @@ You probably want one of these pre-built clients instead:
 
   * [`letsencrypt`](https://github.com/Daplie/node-letsencrypt) (compatible with the official client)
   * `letiny` (lightweight client cli)
-  * `letsencrypt-express` (automatic https for express)
+  * [`letsencrypt-express`](https://github.com/Daplie/letsencrypt-express) (automatic https for express)
 
 ## Install & Usage:
 
